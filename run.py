@@ -19,7 +19,7 @@ def main():
     cmd = sys.argv[1]
 
     if cmd == "pipeline":
-        from cmtr.pipeline import run_uniprot, run_pdb, run_chembl, run_all
+        from cmtr.pipeline import run_uniprot, run_pdb, run_chembl, run_opentargets, run_pubmed, run_all
         connector = sys.argv[2] if len(sys.argv) > 2 else "all"
         incremental = "--incremental" in sys.argv
         if connector == "uniprot":
@@ -28,6 +28,10 @@ def main():
             run_pdb()
         elif connector == "chembl":
             run_chembl()
+        elif connector == "opentargets":
+            run_opentargets()
+        elif connector == "pubmed":
+            run_pubmed()
         else:
             run_all(incremental=incremental)
 

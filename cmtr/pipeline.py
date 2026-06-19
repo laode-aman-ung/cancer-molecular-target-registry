@@ -54,12 +54,33 @@ def run_chembl():
     return stats
 
 
+def run_opentargets():
+    from cmtr.db.schema import init_db
+    from cmtr.connectors.opentargets import run as ot_run
+    init_db(DB_PATH)
+    logger.info("=== Open Targets Connector START ===")
+    stats = ot_run(DB_PATH)
+    logger.info("=== Open Targets Connector DONE: %s ===", stats)
+    return stats
+
+
+def run_pubmed():
+    from cmtr.db.schema import init_db
+    from cmtr.connectors.pubmed import run as pubmed_run
+    init_db(DB_PATH)
+    logger.info("=== PubMed Connector START ===")
+    stats = pubmed_run(DB_PATH)
+    logger.info("=== PubMed Connector DONE: %s ===", stats)
+    return stats
+
+
 def run_all(incremental: bool = False):
     results = {}
     results["uniprot"] = run_uniprot(incremental=incremental)
     results["pdb"] = run_pdb()
     results["chembl"] = run_chembl()
-    # Fase berikutnya: OpenTargets, PubMed
+    results["opentargets"] = run_opentargets()
+    results["pubmed"] = run_pubmed()
     return results
 
 
@@ -68,7 +89,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="CMTR Pipeline Runner")
     parser.add_argument("connector", nargs="?", default="all",
-                        choices=["all", "uniprot", "pdb", "chembl"],
+                        choices=["all", "uniprot", "pdb", "chembl", "opentargets", "pubmed"],
                         help="Connector yang dijalankan (default: all)")
     parser.add_argument("--incremental", action="store_true",
                         help="Mode incremental (hanya ambil data baru sejak sync terakhir)")
@@ -80,5 +101,9 @@ if __name__ == "__main__":
         run_pdb()
     elif args.connector == "chembl":
         run_chembl()
+    elif args.connector == "opentargets":
+        run_opentargets()
+    elif args.connector == "pubmed":
+        run_pubmed()
     else:
         run_all(incremental=args.incremental)

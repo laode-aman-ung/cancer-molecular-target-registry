@@ -23,8 +23,8 @@ Monitoring Dashboard (CLI)
 | UniProt | Protein, gen, fungsi, disease association | ✅ |
 | RCSB PDB | Struktur 3D, resolusi, metode | ✅ |
 | ChEMBL | Inhibitor, bioactivity (IC50/Ki/Kd) | ✅ |
-| Open Targets | Disease-target association score | 🔜 |
-| PubMed | Referensi ilmiah, abstract | 🔜 |
+| Open Targets | Disease-target association score (evidence-based) | ✅ |
+| PubMed | Referensi ilmiah, metadata & abstract | ✅ |
 
 ## Instalasi
 
@@ -48,6 +48,8 @@ python run.py pipeline all
 python run.py pipeline uniprot
 python run.py pipeline pdb
 python run.py pipeline chembl
+python run.py pipeline opentargets
+python run.py pipeline pubmed
 
 # Mode incremental (hanya data baru sejak sync terakhir)
 python run.py pipeline uniprot --incremental
@@ -124,10 +126,10 @@ requirements.txt
 ## Roadmap
 
 - [x] UniProt connector
-- [x] PDB connector  
+- [x] PDB connector
 - [x] ChEMBL connector
-- [ ] Open Targets connector
-- [ ] PubMed connector
+- [x] Open Targets connector
+- [x] PubMed connector
 - [ ] Entity Resolution Layer
 - [ ] PostgreSQL migration
 - [ ] REST API pencarian target
