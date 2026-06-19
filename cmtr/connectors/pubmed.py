@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from cmtr.connectors.base import fetch_json
 from cmtr.db.schema import get_conn
 from cmtr.utils.rate_limiter import LIMITERS, RateLimiter
+from cmtr.utils.resume import mark_interrupted, commit_target
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,7 @@ def run(db_path: str) -> dict:
     else:
         logger.info("[pubmed] tanpa API key (3 req/s) — daftar di https://www.ncbi.nlm.nih.gov/account/")
 
+    mark_interrupted(conn, "pubmed")
     log_id = conn.execute(
         "INSERT INTO sync_log (source, status, started_at) VALUES ('pubmed','running',?)",
         (now,),
@@ -142,10 +144,7 @@ def run(db_path: str) -> dict:
             pmids = _search_pmids(gene_symbol, api_key)
             if not pmids:
                 no_results += 1
-                conn.execute(
-                    "UPDATE targets SET last_synced_pubmed=?, updated_at=? WHERE target_id=?",
-                    (now, now, target_id),
-                )
+                commit_target(conn, target_id, "last_synced_pubmed", now)
                 continue
 
             summaries = _fetch_summaries(pmids, api_key)
@@ -154,20 +153,15 @@ def run(db_path: str) -> dict:
             inserted = _upsert_references(conn, target_id, summaries, now)
             total_inserted += inserted
 
-            conn.execute(
-                "UPDATE targets SET last_synced_pubmed=?, updated_at=? WHERE target_id=?",
-                (now, now, target_id),
-            )
+            commit_target(conn, target_id, "last_synced_pubmed", now)
             total_targets += 1
 
             if total_targets % 50 == 0:
-                conn.commit()
                 logger.info(
                     "[pubmed] progress — targets=%d fetched=%d inserted=%d no_results=%d",
                     total_targets, total_fetched, total_inserted, no_results,
                 )
 
-        conn.commit()
         finished = datetime.now(timezone.utc).isoformat()
         conn.execute("""
             UPDATE sync_log SET status='success', records_fetched=?,

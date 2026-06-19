@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from cmtr.connectors.base import SESSION
 from cmtr.db.schema import get_conn
 from cmtr.utils.rate_limiter import LIMITERS
+from cmtr.utils.resume import mark_interrupted, commit_target
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,7 @@ def run(db_path: str) -> dict:
     conn = get_conn(db_path)
     now = datetime.now(timezone.utc).isoformat()
 
+    mark_interrupted(conn, "opentargets")
     log_id = conn.execute(
         "INSERT INTO sync_log (source, status, started_at) VALUES ('opentargets','running',?)",
         (now,),
@@ -156,10 +158,7 @@ def run(db_path: str) -> dict:
             if not ensembl_id:
                 logger.debug("[opentargets] no Ensembl ID for %s", gene_symbol)
                 no_ensembl += 1
-                conn.execute(
-                    "UPDATE targets SET last_synced_opentargets=?, updated_at=? WHERE target_id=?",
-                    (now, now, target_id),
-                )
+                commit_target(conn, target_id, "last_synced_opentargets", now)
                 continue
 
             # Simpan Ensembl ID ke mapping
@@ -174,20 +173,15 @@ def run(db_path: str) -> dict:
             inserted = _upsert_associations(conn, target_id, associations, now)
             total_inserted += inserted
 
-            conn.execute(
-                "UPDATE targets SET last_synced_opentargets=?, updated_at=? WHERE target_id=?",
-                (now, now, target_id),
-            )
+            commit_target(conn, target_id, "last_synced_opentargets", now)
             total_targets += 1
 
             if total_targets % 50 == 0:
-                conn.commit()
                 logger.info(
                     "[opentargets] progress — targets=%d fetched=%d inserted=%d no_id=%d",
                     total_targets, total_fetched, total_inserted, no_ensembl,
                 )
 
-        conn.commit()
         finished = datetime.now(timezone.utc).isoformat()
         conn.execute("""
             UPDATE sync_log SET status='success', records_fetched=?,

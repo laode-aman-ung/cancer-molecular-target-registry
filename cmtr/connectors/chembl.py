@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 from cmtr.connectors.base import fetch_json
 from cmtr.db.schema import get_conn
+from cmtr.utils.resume import mark_interrupted, commit_target
 
 logger = logging.getLogger(__name__)
 
@@ -101,13 +102,14 @@ def run(db_path: str) -> dict:
     conn = get_conn(db_path)
     now = datetime.now(timezone.utc).isoformat()
 
+    mark_interrupted(conn, "chembl")
     log_id = conn.execute(
         "INSERT INTO sync_log (source, status, started_at) VALUES ('chembl','running',?)",
         (now,),
     ).lastrowid
     conn.commit()
 
-    # Ambil targets yang belum punya ChEMBL sync
+    # last_synced_chembl IS NULL = belum diproses (termasuk yang interrupted)
     rows = conn.execute("""
         SELECT target_id, uniprot_id FROM targets
         WHERE last_synced_chembl IS NULL AND uniprot_id != ''
@@ -130,10 +132,7 @@ def run(db_path: str) -> dict:
             if not chembl_target_id:
                 logger.debug("[chembl] no ChEMBL target for UniProt %s", uniprot_id)
                 no_chembl_id += 1
-                conn.execute(
-                    "UPDATE targets SET last_synced_chembl=?, updated_at=? WHERE target_id=?",
-                    (now, now, target_id),
-                )
+                commit_target(conn, target_id, "last_synced_chembl", now)
                 continue
 
             # Simpan mapping
@@ -149,20 +148,15 @@ def run(db_path: str) -> dict:
             inserted = _upsert_inhibitors(conn, target_id, activities, now)
             total_inserted += inserted
 
-            conn.execute(
-                "UPDATE targets SET last_synced_chembl=?, updated_at=? WHERE target_id=?",
-                (now, now, target_id),
-            )
+            commit_target(conn, target_id, "last_synced_chembl", now)
             total_targets += 1
 
             if total_targets % 50 == 0:
-                conn.commit()
                 logger.info(
                     "[chembl] progress — targets=%d fetched=%d inserted=%d no_id=%d",
                     total_targets, total_fetched, total_inserted, no_chembl_id,
                 )
 
-        conn.commit()
         finished = datetime.now(timezone.utc).isoformat()
         conn.execute("""
             UPDATE sync_log SET status='success', records_fetched=?,
